@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>=^.^=</title>
+<link rel="stylesheet" href="https://developer.api.autodesk.com/viewingservice/v1/viewers/style.css">
+</head>
+<body>
+
+<h1>Embedding the viewer into my page</h1>
+<div id="viewerContainer"></div>
+
+<script src="https://developer.api.autodesk.com/viewingservice/v1/viewers/viewer3D.min.js"></script>
+<script>
+
+// A360 viewer version: 1.2.16
+
+'use strict';
+
+var urn = 'dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6ZXhhbXBsZTEvcm9ib3QuM2Rz';
+var viewerElement = document.getElementById( 'viewerContainer' );
+var viewer = new Autodesk.Viewing.Viewer3D( viewerElement, {} );
+viewer.container.style.width  = '600px';
+viewer.container.style.height = '300px';
+
+var accessToken = {
+  data: null,
+  get: function () {
+
+    return this.data;
+
+  },
+  update: function () {
+
+    return new Promise( function( onFulfilled, onRejected ) {
+
+      var req = new XMLHttpRequest();
+      req.open( 'GET', './get-token.php' );
+
+      req.onload = function() {
+
+        if ( req.status === 200 ) {
+
+          var data = JSON.parse( req.response );
+          accessToken.data = data.access_token;
+          onFulfilled();
+
+        }
+
+      };
+
+      req.send();
+
+    } );
+
+  }
+
+};
+
+
+//--
+
+function initViewer () {
+  
+  var options = {
+
+    env:'AutodeskProduction',
+    accessToken: accessToken.get(),
+    document : 'urn:' + urn
+
+  };
+
+  return new Promise( function ( onFulfilled, onRejected ) {
+
+    Autodesk.Viewing.Initializer( options, function () {
+
+      viewer.initialize();
+      viewer.impl.setLightPreset( 8 );
+      onFulfilled();
+
+      viewer.addEventListener(
+        Autodesk.Viewing.SELECTION_CHANGED_EVENT,
+        function ( event ) {
+
+          console.log( event.fragIdsArray );
+
+        }
+      );
+
+    } );
+
+  } );
+
+}
+
+
+function loadDocument () {
+
+  return new Promise( function ( onFulfilled, onRejected ) {
+
+    viewer.addEventListener(
+      Autodesk.Viewing.GEOMETRY_LOADED_EVENT,
+      function () { onFulfilled(); }
+    );
+
+    Autodesk.Viewing.Document.load( 'urn:' + urn, function ( doc ) {
+
+      var geometryItems = [];
+
+      geometryItems = Autodesk.Viewing.Document.getSubItemsWithProperties(
+        doc.getRootItem(),
+        {
+          'type' : 'geometry',
+          'role' : '3d'
+        },
+        true
+      );
+
+      if ( geometryItems.length > 0 ) {
+
+        viewer.load( doc.getViewablePath( geometryItems[ 0 ] ) );
+
+      }
+
+    }, function( errorMsg ) {// onErrorCallback
+
+      alert( 'Load Error: ' + errorMsg );
+
+    } );
+
+  } );
+
+}
+
+
+function onload () {
+
+  console.log( 'loaded the entire model!' );
+
+}
+
+//--
+
+Promise.resolve()
+.then( accessToken.update )
+.then( initViewer )
+.then( loadDocument )
+.then( onload );
+
+
+</script>
+</body>
+</html>
